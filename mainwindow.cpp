@@ -1,66 +1,85 @@
 #include "mainwindow.h"
-#include <assert.h>
-#include <stdio.h>
 
 mainwindow::mainwindow(QWidget *parent):QMainWindow(parent)
 {
-    QAction *equaliation = new QAction(tr("gray"),this);
-    QAction *binary = new QAction(tr("binary"),this);
-    QAction *open = new QAction(tr("open"),this);
-    QAction *action_identify = new QAction(tr("identity"),this);
-    lineEdit = new QLineEdit;
-    label = new QLabel;
+    QAction*	gray_button = new QAction(tr("gray"),this);
+    QAction*	bin_button = new QAction(tr("binary"),this);
+    QAction*	open = new QAction(tr("open"),this);
+    QAction*	action_identify = new QAction(tr("identity"),this);
+    QAction*	hist_button = new QAction(tr("histogram"),this);
+    QAction*	filter_button = new QAction(tr("median filter"),this);
+    QAction*	otsu_button = new QAction(tr("Otsu"),this);
+    QAction*	sum_button = new QAction(tr("charbar"),this);
 
-    QMenu *file = menuBar()->addMenu(tr("file"));
+    QMenu*	file = menuBar()->addMenu(tr("file"));
     file->addAction(open); 
-    QMenu *pro = menuBar()->addMenu(tr("Process"));
-    pro->addAction(equaliation);
-    pro->addAction(binary);
+    QMenu*	pro = menuBar()->addMenu(tr("Process"));
+    pro->addAction(gray_button);
+    pro->addAction(filter_button);
+    pro->addAction(hist_button);
+    pro->addAction(otsu_button);
+    pro->addAction(bin_button);
     pro->addAction(action_identify);
+    pro->addAction(sum_button);
 
-    connect(equaliation,SIGNAL(triggered()),this,SLOT(Graying()));
+    connect(gray_button,SIGNAL(triggered()),this,SLOT(Graying()));
+    connect(filter_button,SIGNAL(triggered()),this,SLOT(filtering()));
+    connect(hist_button,SIGNAL(triggered()),this,SLOT(get_histogram()));
     connect(open,SIGNAL(triggered()),this,SLOT(openfile()));
     connect(action_identify,SIGNAL(triggered()),this,SLOT(Identify()));
-    connect(binary,SIGNAL(triggered()),this,SLOT(binary_pic()));
+    connect(bin_button,SIGNAL(triggered()),this,SLOT(binary_pic()));
+    connect(sum_button,SIGNAL(triggered()),this,SLOT(charbar()));
+    connect(otsu_button,SIGNAL(triggered()),this,SLOT(otsuThreadmethod()));
 
-    myimage = NULL;
-    intervalue1 = NULL;
-    intervalue2 = NULL;
-    pic_data = (picture_T*)malloc(sizeof(picture_T));
-    assert(pic_data);
-    pic_data->width = 0;
-    pic_data->height = 0;
-    pic_data->bpp = 0;
-    pic_data->data = NULL;
-    QVBoxLayout *h = new QVBoxLayout;
-    h->addWidget(label);
-    h->addWidget(lineEdit);
+    this->lineEdit = new QLineEdit;
+    this->piclabel = new QLabel("display picture");
+    this->binlabel = new QLabel("a histogram of the image");
+    this->myimage  = NULL;
+    this->pic_hist = NULL;
+    this->rgb24	   = NULL;
+    this->hist	   = NULL;
+    this->threshold = 0;
 
-    setLayout(h);
+    this-> photo = (picture_T*)malloc(sizeof(picture_T));
+    assert(photo);
+    photo->width = 0;
+    photo->height = 0;
+    photo->bpp = 0;
+    photo->data = NULL;
+
+    QHBoxLayout *h = new QHBoxLayout;
+    QVBoxLayout *v = new QVBoxLayout;
+    h->addWidget(piclabel);
+    h->addWidget(binlabel);
+    v->addLayout(h);
+    v->addWidget(lineEdit);
+
+    setLayout(v);
     QWidget * widget = new QWidget;
-    widget->setLayout(h);
+    widget->setLayout(v);
     setCentralWidget(widget);
 
     setWindowTitle(tr("charbar"));
 
-    path = "";
-    codec = "";
+    this->path = "";
+    this->codec = "";
     this->resize(1024,800);
 }
 
 /*
- * 这里pic_data->data在加的过程中将这个值也变化了,这样就导致了后面的图片的严重偏移
+ * 这里photo->data在加的过程中将这个值也变化了,这样就导致了后面的图片的严重偏移
  * */
 void mainwindow::capturingdata()
 {
     int j = 0;
-    UINT8* tmp1 = pic_data->data; 
+    UINT8* tmp1 = photo->data; 
+
     for(j = 0; j < myimage->height();j++)
     {
-	memcpy(pic_data->data,myimage->scanLine(j),myimage->width() * (myimage->depth() >> 3));
-	pic_data->data += (myimage->width() * (myimage->depth() >> 3));
+	memcpy(photo->data,myimage->scanLine(j),myimage->width() * (myimage->depth() >> 3));
+	photo->data += (myimage->width() * (myimage->depth() >> 3));
     }
-    pic_data->data = tmp1;
+    photo->data = tmp1;
 }
 
 
@@ -73,83 +92,110 @@ void mainwindow::openfile()
     {
 	QMessageBox::warning(NULL,tr("warning"),tr("this path is empty"),QMessageBox::Yes);
     }
-    
-    if(this->myimage)
+    else
     {
-	delete this->myimage;
+	if(this->myimage)
+    	{
+    	    delete this->myimage;
+	    this->myimage = NULL;
+    	}
+	
+	/*
+	 * 对打开后面的图片时要释放掉前面图片申请的空间
+	 * */
+    	if(this->rgb24)
+    	{
+    	    free (this->rgb24);
+	    this->rgb24 = NULL;
+    	}
+
+    	myimage = new QImage(this->path);
+    	assert(myimage);
+
+    	this->piclabel->setPixmap(QPixmap::fromImage(*myimage));
+
+    	if(photo->data)
+    	{
+    	    free(photo->data);
+	    photo->data = NULL;
+    	}
+
+    	this->photo->width = myimage->width();
+    	this->photo->height = myimage->height();
+    	this->photo->data = (UINT8*)malloc((myimage->depth() >> 3) * myimage->width() * myimage->height());
+    	this->photo->bpp = myimage->depth();
+    	
+    	this->rgb24 = (UINT8*)malloc(photo->width * photo->height * 3);
+
+    	assert(this->rgb24);
+    	assert(photo->data);
+
+    	capturingdata();
+
+    	printf("width is %d,heigth is %d,depth is %d\n",myimage->width(),myimage->height(),myimage->depth());
+    	update();
     }
+}
 
-    if(this->intervalue1)
-    {
-	free(this->intervalue1);
-    }
-    
-    if(this->intervalue2)
-    {
-	free (this->intervalue2);
-    }
 
-    myimage = new QImage(this->path);
-    assert(myimage);
-    label->setPixmap(QPixmap::fromImage(*myimage));
-    pic_data->width = myimage->width();
-    pic_data->height = myimage->height();
-    if(pic_data->data)
-    {
-	free(pic_data->data);
-    }
+void mainwindow::charbar()
+{
+    Graying();
+    filtering();
+    get_histogram();
+    otsuThreadmethod();
+    binary_pic();
 
-    pic_data->data = (unsigned char*)malloc((myimage->depth() >> 3) * myimage->width() * myimage->height());
-    pic_data->bpp = (myimage->depth()) >> 3;
-    
-    this->intervalue2 = (UINT8*)malloc(pic_data->width * pic_data->height * 3);
+    Identify();
+}
+void mainwindow::Graying()
+{
+   graying(this->photo);
+   rgb8torgb32();
+   binlabel->setPixmap(QPixmap::fromImage(*myimage));
+   update();
+}
 
-    assert(this->intervalue2);
-    assert(pic_data->data);
-
-    capturingdata();
-
-    printf("width is %d,heigth is %d,depth is %d\n",myimage->width(),myimage->height(),myimage->depth());
-
-    if(myimage == NULL)
-    {
-	QMessageBox::warning(NULL,tr("error"),tr("create image is failure,this error is %1").arg(strerror(errno)));
-	exit(-1);
-    }
+void mainwindow::filtering()
+{
+    filter(this->photo);
+    rgb8torgb32();
+    binlabel->setPixmap(QPixmap::fromImage(*myimage));
     update();
 }
 
-void mainwindow::Graying()
+void mainwindow::get_histogram()
 {
-   this->intervalue1 = graying(pic_data); 
-   rgb8torgb32();
-   update();
+    //直方图
+    this->hist = (histogram*)malloc(sizeof(histogram));
+    histogram_func(this->photo,hist);
 }
 
 void mainwindow::binary_pic()
 {
-    binarization(this->intervalue1,pic_data->width,pic_data->height);
+    binarization(this->photo,this->threshold);
     rgb8torgb32();
+    binlabel->setPixmap(QPixmap::fromImage(*myimage));
     update();
+}
+
+void mainwindow::otsuThreadmethod()
+{
+    this->threshold = get_histogram_value2(this->hist);
+    //this->threshold = otsu(this->hist);
+    this->threshold = 80;
+    printf("阈值：%d\n",this->threshold);
 }
 
 void mainwindow::Identify()
 {
-    char* ch = "barcode is invaild";
-    char* restr = (char*)Identify_charbar(this->intervalue1,pic_data->width,pic_data->height);
-    if(restr == NULL)
-    {
-	codec = QString(ch);
-    }
-    else
-    {
-	codec = QString(restr);
-    }
+    char* restr = (char*)Iden_charbar(this->photo);
+    codec = QString(restr);
     
     lineEdit->setText(codec);
     lineEdit->setReadOnly(1);
 }
-
+#if 0
 void mainwindow::paintEvent(QPaintEvent *event)
 {
     QPainter *paint = new QPainter(this);
@@ -158,13 +204,12 @@ void mainwindow::paintEvent(QPaintEvent *event)
 	paint->drawImage(QPoint(50,50),*(this->myimage));	
     }
 }
-
+#endif
 mainwindow::~mainwindow()
 {
-    free(pic_data->data);
-    free(pic_data);
-    free(this->intervalue2);
-    free(this->intervalue1);
+    free(photo->data);
+    free(photo);
+    free(this->rgb24);
 }
 
 void mainwindow::rgb8torgb32()
@@ -172,24 +217,27 @@ void mainwindow::rgb8torgb32()
     int i = 0;
     int j = 0;
 
-    assert(this->intervalue2);
+    assert(this->rgb24);
 
-    for(i = 0; i < pic_data->height; i++)
-    {
-	for(j = 0;j < pic_data->width;j++)
-	{
-	    UINT8 a = this->intervalue1[i*pic_data->width+j];
-	    this->intervalue2[i*pic_data->width*3+j*3] = a;
-	    this->intervalue2[i*pic_data->width*3+j*3 + 1] = a;
-	    this->intervalue2[i*pic_data->width*3+j*3 + 2] = a;
+    for(i = 0; i < photo->height; i++)
+    { 
+	for(j = 0;j < photo->width;j++) 
+	{ 
+	    UINT8 a = this->photo->data[i*photo->width+j]; 
+	    this->rgb24[i*photo->width*3+j*3] = a; 
+	    this->rgb24[i*photo->width*3+j*3 + 1] = a;
+	    this->rgb24[i*photo->width*3+j*3 + 2] = a;
 	}
     }
 
     if(this->myimage)
     {
 	delete this->myimage;
+	this->myimage = NULL;
     }
 
-    this->myimage = new QImage(this->intervalue2,pic_data->width,pic_data->height,3*pic_data->width,QImage::Format_RGB888);
+    this->myimage = new QImage(this->rgb24,photo->width,photo->height,3*photo->width,QImage::Format_RGB888);
     assert(this->myimage);
 }
+
+

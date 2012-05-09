@@ -5,11 +5,15 @@
 extern "C"
 {
     #include "header.h"
-    UINT8* Identify_charbar(const UINT8* tmp,int width,int height);
+    #define  EAN    60
+    #define  EAN_M  95
+    char* Iden_charbar(picture_T* pic);
 }
 #else
     #include "header.h"
-    UINT8* Identify_charbar(const UINT8* tmp,int width,int height);
+    #define  EAN    60
+    #define  EAN_M  95
+    char* Iden_charbar(picture_T* pic);
 #endif
 
 #endif
