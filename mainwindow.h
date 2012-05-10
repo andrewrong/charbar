@@ -19,6 +19,7 @@ class mainwindow:public QMainWindow
 	QString	    path;
 	picture_T*  photo;
 	UINT8*	    rgb24;
+	UINT8*	    p_gray_data;
 	QString	    codec;
 	QLineEdit*  lineEdit;
 	QLabel*	    piclabel;
@@ -38,5 +39,6 @@ class mainwindow:public QMainWindow
 	void get_histogram();
 	void otsuThreadmethod();
 	void charbar();
+	void equalization();
 };
 #endif

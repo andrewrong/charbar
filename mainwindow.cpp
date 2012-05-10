@@ -10,11 +10,13 @@ mainwindow::mainwindow(QWidget *parent):QMainWindow(parent)
     QAction*	filter_button = new QAction(tr("median filter"),this);
     QAction*	otsu_button = new QAction(tr("Otsu"),this);
     QAction*	sum_button = new QAction(tr("charbar"),this);
+    QAction*	equal_button = new QAction(tr("equalization"),this);
 
     QMenu*	file = menuBar()->addMenu(tr("file"));
     file->addAction(open); 
     QMenu*	pro = menuBar()->addMenu(tr("Process"));
     pro->addAction(gray_button);
+    pro->addAction(equal_button);
     pro->addAction(filter_button);
     pro->addAction(hist_button);
     pro->addAction(otsu_button);
@@ -30,6 +32,7 @@ mainwindow::mainwindow(QWidget *parent):QMainWindow(parent)
     connect(bin_button,SIGNAL(triggered()),this,SLOT(binary_pic()));
     connect(sum_button,SIGNAL(triggered()),this,SLOT(charbar()));
     connect(otsu_button,SIGNAL(triggered()),this,SLOT(otsuThreadmethod()));
+    connect(equal_button,SIGNAL(triggered()),this,SLOT(equalization()));
 
     this->lineEdit = new QLineEdit;
     this->piclabel = new QLabel("display picture");
@@ -150,12 +153,19 @@ void mainwindow::charbar()
 }
 void mainwindow::Graying()
 {
-   graying(this->photo);
+   p_gray_data = graying(this->photo);
    rgb8torgb32();
    binlabel->setPixmap(QPixmap::fromImage(*myimage));
    update();
 }
 
+void mainwindow::equalization()
+{
+    Hist_equalization(this->photo);
+    rgb8torgb32();
+    binlabel->setPixmap(QPixmap::fromImage(*myimage));
+    update();
+}
 void mainwindow::filtering()
 {
     filter(this->photo);
@@ -183,7 +193,6 @@ void mainwindow::otsuThreadmethod()
 {
     this->threshold = get_histogram_value2(this->hist);
     //this->threshold = otsu(this->hist);
-    this->threshold = 80;
     printf("阈值：%d\n",this->threshold);
 }
 
@@ -194,6 +203,10 @@ void mainwindow::Identify()
     
     lineEdit->setText(codec);
     lineEdit->setReadOnly(1);
+    rgb8torgb32();
+    binlabel->setPixmap(QPixmap::fromImage(*myimage));
+    update();
+
 }
 #if 0
 void mainwindow::paintEvent(QPaintEvent *event)
@@ -210,6 +223,7 @@ mainwindow::~mainwindow()
     free(photo->data);
     free(photo);
     free(this->rgb24);
+    free(p_gray_data);
 }
 
 void mainwindow::rgb8torgb32()

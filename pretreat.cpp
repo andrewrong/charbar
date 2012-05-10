@@ -1,12 +1,17 @@
 #include "pretreat.h"
 
-void graying(picture_T *pic)
+/*灰度化
+ * 返回的指针是因为要把原来的指向数据的指针返回,不然就可能引起内存泄漏
+ * */
+
+UINT8*	graying(picture_T *pic)
 {
-    int	    width = 0;
-    int	    height = 0;
-    int	    i = 0;
-    int	    j = 0;
-    UINT8*  tmp = NULL;
+    int	    width	= 0;
+    int	    height	= 0;
+    int	    i		= 0;
+    int	    j		= 0;
+    UINT8*  tmp		= NULL;
+    UINT8*  tmp1	= NULL;
 
 /*
  * 显示进入的函数
@@ -16,13 +21,14 @@ void graying(picture_T *pic)
 
     assert(pic);
     assert(pic->data);
+    assert(pic->width > 0 && pic->height > 0);
 
-    width = pic->width;
-    height = pic->height;
-    tmp = (UINT8*)malloc(height * width * sizeof(UINT8));
+    width   = pic->width;
+    height  = pic->height;
+    tmp	    = (UINT8*)malloc(height * width * sizeof(UINT8));
 
     assert(tmp);
-    printf("func:%s,pic->bpp = %d\n",__func__,pic->bpp);
+    //printf("func:%s,pic->bpp = %d\n",__func__,pic->bpp);
     
     if(pic->bpp == 32)
     {
@@ -39,20 +45,30 @@ void graying(picture_T *pic)
     	    }
     	    //printf("\n");
     	}
+
+	tmp1 = pic->data;
 	pic->data = tmp;
+
+	return tmp1;
     }
     else if(pic->bpp == 1)
     {
 	printf("func:%s,this pic is 二值图\n",__func__);
 	assert(0);
+	return NULL;
     }
     else if(pic->bpp == 8)
     {
 	free(tmp);
 	tmp = NULL;
+	return NULL;
     }
 }
 
+/*直方图的统计
+ * pic:要统计的图片
+ * hist:直方图
+ * */
 void histogram_func(picture_T *pic,histogram *hist)
 {
     int width = 0;
@@ -108,6 +124,12 @@ void histogram_func(picture_T *pic,histogram *hist)
     hist->sum = height * width;
 }
 
+/*
+ * 二值化
+ * pic:要进行二值化的图片
+ * threshold:阈值
+ * */
+
 void binarization(picture_T*pic,int threshold)
 {
 
@@ -125,6 +147,7 @@ void binarization(picture_T*pic,int threshold)
     assert(pic);
     assert(pic->data);
     assert(pic->width > 0 &&  pic->height > 0);
+
     width	= pic->width;
     height	= pic->height;
  
@@ -146,6 +169,12 @@ void binarization(picture_T*pic,int threshold)
 
 }
 
+/*
+ * 冒泡排序
+ * ch:要进行排序的数组
+ * num:数组的大小
+ * 返回的是这个数组的中间的一个值
+ * */
 static UINT8 get_median_value(UINT8* ch,int num)
 {
     int i   = 0;
@@ -171,6 +200,7 @@ static UINT8 get_median_value(UINT8* ch,int num)
 
 }
 
+//中值滤波
 void filter(picture_T* pic) 
 {
     int	    width   = 0;
@@ -220,22 +250,24 @@ void filter(picture_T* pic)
     }
 }
 
-
-/*这里会对不同的图片产生溢出，等一会还要来修改*/
+/*大津阈值法
+ *根据直方图的统计然后通过大津阈值法动态的求出阈值
+ 原理:当背景的像素与目标的像素方差最大时,那么这个时候的阈值就是最佳分割背景和目标的阈值
+ */
 int otsu(histogram* hist)
 {
-    int U1 = 0;
-    long long U2 = 0;
-    int i = 0;
-    int j = 0;
-    int sum = 0;
-    int* data = NULL; 
-    long long nsum = 0;
-    int Threshold = 0;
-    double dMax = 0;
-    double dVax = 0;
-    double u = 0;
-    double v = 0;
+    int U1	    = 0;
+    long long U2    = 0;
+    int i	    = 0;
+    int j	    = 0;
+    int sum	    = 0;
+    int* data	    = NULL; 
+    long long nsum  = 0;
+    int Threshold   = 0;
+    double dMax	    = 0;
+    double dVax	    = 0;
+    double u	    = 0;
+    double v	    = 0;
 
 /*
  * 显示进入的函数
@@ -302,6 +334,7 @@ int otsu(histogram* hist)
     return Threshold;
 }
 
+//另外一种取得阈值的方法
 int get_histogram_value1(histogram* hist)
 {
     int max = 0;
@@ -315,6 +348,13 @@ int get_histogram_value1(histogram* hist)
     return int(hist->max - ((hist->max - hist->min) / 3));
 }
 
+/*
+ * 这也是另外的取得阈值的方法
+ * T0 = 128
+ * T(i+1) = (av1(T(i)) + (av2(T(i))))/2
+ *
+ * 当T(i+1) = T(i) 就是最好的阈值
+ * */
 int get_histogram_value2(histogram*hist)
 {
     int i	    = 0;
@@ -358,6 +398,8 @@ int get_histogram_value2(histogram*hist)
 /*
  * 1.计算图像的直方图
  * 2.进行直方图均衡化
+ *
+ * 这个函数没有使用到
  */
 void Hist_equalization(picture_T*pic)
 {
@@ -410,4 +452,7 @@ void Hist_equalization(picture_T*pic)
 	    data[i*width+j] = pixel;
 	}
     }
+
+    free(p);
+    free(hist);
 }

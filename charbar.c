@@ -1,11 +1,13 @@
 #include "charbar.h"
-#include <math.h>
-#include <assert.h>
-#include <stdio.h>
 
 #define MATRIX_W 60
 #define AERA_TH     40
 
+/*
+ * elem对应的是双归法中的每一个值
+ * ch:就是字符
+ * is_odd:表示这个字符是偶数还是奇数
+ * */
 typedef struct elem
 {
     char ch;
@@ -14,9 +16,10 @@ typedef struct elem
 
 //索引归一值
 static elem htab[60];
-//奇偶对应的值
-static int ch_data[32] = {'0'};
+//奇偶对应的值(ch_data用来确定的是第一个字符的值)
+static int ch_data[64] = {'0'};
 
+#if 0
 void display(int *arr,int num)
 {
     int i = 0;
@@ -28,7 +31,9 @@ void display(int *arr,int num)
 
     printf("********************************\n");
 }
+#endif
 
+//初始化htab和ch_data的值
 void init()
 {
     print_func(__func__);
@@ -94,11 +99,16 @@ void init()
     ch_data[29] = 'b';
     ch_data[30] = 'b';
     ch_data[31] = 'b';
+    ch_data[37] = 'b';
 }
 
 /*
- * 统计每一行的黑色点的个数,赋值给hor这个数组
- * */
+ *水平统计每一行的黑色像素的个数
+ *data:图像数据
+ *width:宽度
+ *height:行数
+ *arPixelH:记录所有行的黑色像素的个数
+ */
 static void StatisticH(UINT8*data,int width ,int height,int* arPixelH)
 {
     int i = 0;
@@ -121,13 +131,22 @@ static void StatisticH(UINT8*data,int width ,int height,int* arPixelH)
     }
 }
 
+
+/*
+ *垂直统计每一列的黑色像素的个数
+ *data:图像数据
+ *width:宽度
+ *arPixelV:记录所有列的黑色像素的个数
+ *topImage:上边缘
+ *bottomImage:下边缘
+ */
 static void StatisticV(UINT8*data,int width,int* arPixelV,int topImage,int bottomImage)
 {
     int i = 0;
     int j = 0;
 
     assert(data && arPixelV);
-    assert(width > 0 && topImage >= 0 && bottomImage >= 0);
+    assert(width > 0 && topImage >= 0 && bottomImage > 0);
     
     print_func(__func__);
 
@@ -146,10 +165,11 @@ static void StatisticV(UINT8*data,int width,int* arPixelV,int topImage,int botto
 /*
  * arPixelH:统计了每一行的黑色像素的个数
  * height:高度
- * armarkH:用来标记哪些行是可以用来扫描的
+ * armarkH:用来标记哪些行是可以用检测
  * topImage:上边缘
  * bottomImage:下边缘
- * */
+ * 
+ * 作用是确定上下边缘*/
 
 int BorderH(int* arPixelH,int height,int* armarkH,int*	topImage,int* bottomImage)
 {
@@ -216,8 +236,7 @@ int BorderH(int* arPixelH,int height,int* armarkH,int*	topImage,int* bottomImage
 }
 
 /*
- *BorderV
- *用来确定左右边界
+ *函数本身就是统计了一下可以符合检测的列(条)并且设置了1
  * */
 
 void BorderV(int* arPixelV,int width,int* armarkV)
@@ -248,20 +267,22 @@ void BorderV(int* arPixelV,int width,int* armarkV)
 }
 
 /*
- * distance:存放距离
- * armark:已经被定好的条空
- * tmp:本身是用来存放每一个边界的坐标
+ *作用是通过BorderV提供的大概的值来确定左右的边缘 
+ *width:宽度 
+ *armarkV:存放了一些可以用来检测的列(条)
+ *left:左边缘
+ *right:右边缘
  * */
-static int get_distance1(int width,int* distance,int* armarkV,double*average)
+static int get_distance1(int width,int* armarkV,double*average,int* right,int* left)
 {
     int i	= 0;
     int j	= 0;
     int	k	= 0;
-    int left	= 0;
     int*tmp	= (int*)calloc(100,sizeof(int));
+    int*distance= (int*)calloc(100,sizeof(int));
 
     assert(width > 0);
-    assert(distance && armarkV);
+    assert(distance && armarkV && tmp);
 
     print_func(__func__);
 
@@ -273,6 +294,7 @@ static int get_distance1(int width,int* distance,int* armarkV,double*average)
 	}
     }
     
+    //j表示了有多少条边缘,那样就可以确定有多少个间距
     for(i = 0; i < j - 1; i++)
     {
 	distance[i] = tmp[i+1] - tmp[i];
@@ -281,12 +303,12 @@ static int get_distance1(int width,int* distance,int* armarkV,double*average)
     if(MATRIX_W == j)
     {
 	printf("条形码的图像很标准\n");
-	left = 0;
+	*left = 0;
     }
     else if(j < MATRIX_W)
     {
 	printf("条形码的图像不是很好,无法检测\n");
-	printf("j:%d\n",j);
+	printf("能被检查到的边界数:%d\n",j);
 	return -1;
     }
     else
@@ -301,21 +323,25 @@ static int get_distance1(int width,int* distance,int* armarkV,double*average)
 		{
 		    distance[k-i] = distance[k];
 		}
-		left = i;
+		*left = i;
 		break;
 	    }
 	}
     }
 
-    *average = (tmp[left+59] - tmp[left])/(95*1.0);
-    left = tmp[left];
+    *average = (tmp[*left+59] - tmp[*left])/(95*1.0);
+    *right = tmp[*left+59];
+
+    *left = tmp[(*left)];
 
     free(tmp);
     tmp = NULL;
-    return left;
-    //进行判断,确定左边缘
+    free(distance);
+    distance = NULL;
+    return 0;
 }
 
+//冒泡排序
 static int sort(int* tmp,int n)
 {
     int i	= 0;
@@ -340,7 +366,11 @@ static int sort(int* tmp,int n)
 }
 
 /*
- * 先上下边缘都确定时,然后计算每一行的边界变化的坐标,并且保存在matrix
+ * get_distance2是在得知了上下左右边缘以后进一步对条形码距离的检测，为下面的检测做准备
+ * width:宽度
+ * topImage:上边缘
+ * bottomImage:下边缘
+ *
  * */
 static int* get_distance2(int width,int topImage,int bottomImage,int left,int**matrix,UINT8*data)
 {
@@ -385,7 +415,7 @@ static int* get_distance2(int width,int topImage,int bottomImage,int left,int**m
 	distance[i] = sort(tmp,bottomImage-topImage+1);
     }
     
-    display(distance,59);
+    //display(distance,59);
     free(tmp);
     tmp = NULL;
     
@@ -719,8 +749,10 @@ char* Iden_charbar(picture_T* pic)
     int	    topImage	    = 0;
     int	    bottomImage	    = 0;
     int	    left	    = 0;
+    int	    right	    = 0;
     double  average	    = 0;
     int	    i		    = 0;
+    int	    j		    = 0;
     int	    k		    = 1;
     int	    index	    = 0;
 
@@ -744,11 +776,11 @@ char* Iden_charbar(picture_T* pic)
     arPixelV	=	(int*)calloc(width,sizeof(int));
     armarkV	=	(int*)calloc(width,sizeof(int));
     armarkH	=	(int*)calloc(height,sizeof(int));
-    distance	=	(int*)calloc(100,sizeof(int));
+    distance	=	NULL;
     result1	=	(UINT8*)calloc(14,sizeof(UINT8));
     result2	=	(UINT8*)calloc(14,sizeof(UINT8));
 
-    assert(arPixelH && arPixelV && armarkH && armarkV && distance && result1 && result2);
+    assert(arPixelH && arPixelV && armarkH && armarkV  && result1 && result2);
 
     /*
      * 1.水平黑色像素统计
@@ -776,16 +808,15 @@ char* Iden_charbar(picture_T* pic)
     BorderV(arPixelV,width,armarkV);
 
     //4.1
-    left = get_distance1(width,distance,armarkV,&average);
-
-    if(left == -1)
+     
+    if(get_distance1(width,armarkV,&average,&right,&left) == -1)
     {
 	return "NULL";
     }
-    printf("left:%d\n",left);
-    
-    printf("average:%f\n",average);
 
+    printf("left:%d\n",left);
+    printf("right:%d\n",right);
+    
     matrix = (int**)calloc(bottomImage - topImage + 1, sizeof(int*));
 
     for(i = 0; i < (bottomImage - topImage + 1); i++)
@@ -793,7 +824,6 @@ char* Iden_charbar(picture_T* pic)
 	matrix[i] = (int*)calloc(60,sizeof(int));
     }
     
-    free(distance);
     distance = get_distance2(width,topImage,bottomImage,left,matrix,data);
     
 
@@ -819,6 +849,7 @@ char* Iden_charbar(picture_T* pic)
     }
     
     result1[0] = ch_data[index];
+    printf("index1:%d\n",index);
 
     for(i = 32; i < 56;)
     {
@@ -852,13 +883,14 @@ char* Iden_charbar(picture_T* pic)
 	int T  = c1 + c2 + c3 + c4;
 
 	int re = get_key(T1,T2,T);
-	
+	printf("re:%d\n",re);	
 	if(my_switch(re,c1,c2,c3,c4,result2,k++))
 	{
 	    index += pow(2,7-k);
 	}
     }
-
+    
+    printf("index2:%d\n",index);
     result2[0] = ch_data[index];
 
     for(i = 32; i < 56;)
@@ -873,7 +905,7 @@ char* Iden_charbar(picture_T* pic)
 	int T  = c1 + c2 + c3 + c4;
 
 	int re = get_key(T1,T2,T);
-	
+
 	my_switch(re,c1,c2,c3,c4,result2,k++);
     }
     
@@ -890,6 +922,21 @@ char* Iden_charbar(picture_T* pic)
 	}
     }
 
+    for(i = topImage; i <= bottomImage; i++)
+    {
+	if(i == topImage || i == bottomImage)
+	{
+	    for(j = left; j <= right; j++)
+	    {
+	        pic->data[i*width+j] = 0;
+	    }
+	}
+	else
+	{
+	    pic->data[i*width+left] = 0;
+	    pic->data[i*width+right] = 0;
+	}
+    }
 
     for(i = 0; i < (bottomImage - topImage + 1); i++)
     {
