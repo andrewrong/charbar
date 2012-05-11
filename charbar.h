@@ -5,14 +5,10 @@
 extern "C"
 {
     #include "header.h"
-    #define  EAN    60
-    #define  EAN_M  95
     extern char* Iden_charbar(picture_T* pic);
 }
 #else
     #include "header.h"
-    #define  EAN    60
-    #define  EAN_M  95
     extern char* Iden_charbar(picture_T* pic);
 #endif
 

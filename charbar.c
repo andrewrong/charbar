@@ -317,7 +317,7 @@ static int get_distance1(int width,int* armarkV,double*average,int* right,int* l
 	{
 	    float a = distance[i+1] / (distance[i] * 1.0); 
 
-	    if(a >= 0.5 && a <= 2)
+	    if(a >= 0.5 && a <= 2 && ())
 	    {
 		for(k = i; k < i + 59; k++)
 		{
@@ -370,18 +370,22 @@ static int sort(int* tmp,int n)
  * width:宽度
  * topImage:上边缘
  * bottomImage:下边缘
- *
+ * left:左边缘
+ * matrix:1.用来记录边缘点 2.用来存放在上下边缘中每一行的条空之间的距离
+ * data:原始数据
  * */
 static int* get_distance2(int width,int topImage,int bottomImage,int left,int**matrix,UINT8*data)
 {
-    int	    i	    = 0;
-    int	    j	    = 0;
-    int	    k	    = 0;
-    int*    distance = (int*)calloc(59,sizeof(int));
-    int*    tmp	    = (int*)calloc(bottomImage - topImage,sizeof(int));
+    int	    i		= 0;
+    int	    j	    	= 0;
+    int	    k	    	= 0;
+    int*    distance	= (int*)calloc(59,sizeof(int));
+    int*    tmp	    	= (int*)calloc(bottomImage - topImage,sizeof(int));
 
     assert(distance && tmp);
     
+    //left-5是为了防止上一步left不是很准确做的一种保险措施
+    //因为已经1确定了left,所以就直接取得60个边界坐标就可以了
     for(i = topImage; i <= bottomImage; i++)
     {
 	k = 0;
@@ -394,7 +398,6 @@ static int* get_distance2(int width,int topImage,int bottomImage,int left,int**m
 	}
     }
     
-    //因为matrix在一开始都被赋值为0,从上面可知没有一个边界会是从0开始的，所以可以作为一种终止标准
 
     for(i = 0; i <= (bottomImage - topImage); i++)
     {
@@ -414,8 +417,7 @@ static int* get_distance2(int width,int topImage,int bottomImage,int left,int**m
 
 	distance[i] = sort(tmp,bottomImage-topImage+1);
     }
-    
-    //display(distance,59);
+
     free(tmp);
     tmp = NULL;
     
@@ -553,6 +555,7 @@ static int get_char(int c1,int c2,int c3,int c4,UINT8*str,int k)
     return -1;
 }
 
+//距离进行换算,看每一个条空占多少个模块
 static int change_distance(int c,double average)
 {
     double a = c / average;
@@ -579,6 +582,7 @@ static int change_distance(int c,double average)
     return 1;
 }
 
+//判断识别出来的条形码是否有效
 static int is_valid(UINT8*result)
 {
     int i   = 0;

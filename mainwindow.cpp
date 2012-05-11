@@ -208,16 +208,7 @@ void mainwindow::Identify()
     update();
 
 }
-#if 0
-void mainwindow::paintEvent(QPaintEvent *event)
-{
-    QPainter *paint = new QPainter(this);
-    if(this->myimage != NULL)
-    {
-	paint->drawImage(QPoint(50,50),*(this->myimage));	
-    }
-}
-#endif
+
 mainwindow::~mainwindow()
 {
     free(photo->data);
