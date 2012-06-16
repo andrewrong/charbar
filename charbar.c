@@ -3,6 +3,13 @@
 #define MATRIX_W 60
 #define AERA_TH     40
 
+static void locate(picture_T* pic,int *left,int*topimage);
+
+typedef struct 
+{
+    int x;
+    int y;
+}point;
 /*
  * elem对应的是双归法中的每一个值
  * ch:就是字符
@@ -109,7 +116,7 @@ void init()
  *height:行数
  *arPixelH:记录所有行的黑色像素的个数
  */
-static void StatisticH(UINT8*data,int width ,int height,int* arPixelH)
+static void StatisticH(UINT8*data,int width ,int height,int* arPixelH,int left)
 {
     int i = 0;
     int j = 0;
@@ -121,7 +128,7 @@ static void StatisticH(UINT8*data,int width ,int height,int* arPixelH)
 
     for(i = 0; i < height; i++)
     {
-	for(j = 0;j < width; j++)
+	for(j = (left);j < width; j++)
 	{
 	    if(data[i*width+j] == 0)
 	    {
@@ -140,7 +147,7 @@ static void StatisticH(UINT8*data,int width ,int height,int* arPixelH)
  *topImage:上边缘
  *bottomImage:下边缘
  */
-static void StatisticV(UINT8*data,int width,int* arPixelV,int topImage,int bottomImage)
+static void StatisticV(UINT8*data,int width,int* arPixelV,int topImage,int bottomImage,int left)
 {
     int i = 0;
     int j = 0;
@@ -150,7 +157,7 @@ static void StatisticV(UINT8*data,int width,int* arPixelV,int topImage,int botto
     
     print_func(__func__);
 
-    for(j = 0; j < width; j++)
+    for(j = left; j < width; j++)
     {
 	for(i = topImage; i <= bottomImage; i++)
     	{
@@ -171,75 +178,68 @@ static void StatisticV(UINT8*data,int width,int* arPixelV,int topImage,int botto
  * 
  * 作用是确定上下边缘*/
 
-int BorderH(int* arPixelH,int height,int* armarkH,int*	topImage,int* bottomImage)
+void BorderH(int* arPixelH,int height,int* armarkH,int* topImage,int* bottomImage)
 {
     int i	= 0;
     int j	= 0;
     double sum	= 0;
-    int	 count	= 0;
+    int	 count1	= 0;
+    int	 count2	= 0;
     double aver	= 0;
 
     assert(arPixelH && armarkH && topImage && bottomImage);
     assert(height > 0);
 
     print_func(__func__);
+    *bottomImage = *topImage;
 
     for(i = 0; i < height; i++)
     {
 	if(arPixelH[i] > 0)
 	{
-	    count++;
+	    count1++;
 	    sum += arPixelH[i];
 	}
     }
 
-    aver = (sum) / count;
+    aver = (sum) / count1;
     
-
+    count1 = 0;
     //计算符合条件的行
-    for(i = 0; i < (height - 1); i++)
+    for(i = 0; i < *topImage; i++)
     {
-	int dis = abs(arPixelH[i] - arPixelH[i+1]);
 
-	if(dis <= 5 && arPixelH[i] >= (0.75)*aver)
+	if(arPixelH[i] >= aver)
 	{
-	    armarkH[i] = 1;
+	    count1++; 
 	}
     }
 
+    for(i = *topImage; i < height; i++)
+    {
+
+	if(arPixelH[i] >= aver)
+	{
+	    count2++; 
+	}
+    }
     //用来确定上下边界
-    for(i = 0; i < (height - 40); i++)
+
+    if(count1 > count2)
     {
-	int iCount = 0;
-	for(j = 0; j < 40; j++)
-	{
-	    if(armarkH[i+j] == 1)
-	    {
-		iCount++;
-	    }
-	}
-
-	if(iCount >= 37)
-	{
-	    *topImage = i; 
-	    *bottomImage = i + 40;
-	    break;
-	}
+	*topImage -= 50;
     }
-
-    if(topImage == bottomImage)
+    else
     {
-	return -1;
+	*topImage += 50;
     }
-
-    return 0;
 }
 
 /*
  *函数本身就是统计了一下可以符合检测的列(条)并且设置了1
  * */
 
-void BorderV(int* arPixelV,int width,int* armarkV)
+void BorderV(int* arPixelV,int width,int* armarkV,int left)
 {
     int i	= 0;
     int tmpmax	= 0;
@@ -249,7 +249,7 @@ void BorderV(int* arPixelV,int width,int* armarkV)
 
     print_func(__func__);
 
-    for(i = 0; i < width; i++)
+    for(i = left; i < width; i++)
     {
 	if(arPixelV[i] > tmpmax)
 	{
@@ -257,7 +257,7 @@ void BorderV(int* arPixelV,int width,int* armarkV)
 	}
     }
 
-    for(i = 0; i < width; i++)
+    for(i = left; i < width; i++)
     {
 	if(arPixelV[i] >= (0.75 * tmpmax))	
 	{
@@ -273,11 +273,10 @@ void BorderV(int* arPixelV,int width,int* armarkV)
  *left:左边缘
  *right:右边缘
  * */
-static int get_distance1(int width,int* armarkV,double*average,int* right,int* left)
+static int get_distance1(int width,int* armarkV,double*average,int left,int*right)
 {
     int i	= 0;
     int j	= 0;
-    int	k	= 0;
     int*tmp	= (int*)calloc(100,sizeof(int));
     int*distance= (int*)calloc(100,sizeof(int));
 
@@ -286,7 +285,7 @@ static int get_distance1(int width,int* armarkV,double*average,int* right,int* l
 
     print_func(__func__);
 
-    for(i = 0; i < (width - 1); i++)
+    for(i = left; i < (width - 1); i++)
     {
 	if((armarkV[i] ^ armarkV[i + 1]) == 1)
 	{
@@ -303,7 +302,6 @@ static int get_distance1(int width,int* armarkV,double*average,int* right,int* l
     if(MATRIX_W == j)
     {
 	printf("条形码的图像很标准\n");
-	*left = 0;
     }
     else if(j < MATRIX_W)
     {
@@ -311,28 +309,26 @@ static int get_distance1(int width,int* armarkV,double*average,int* right,int* l
 	printf("能被检查到的边界数:%d\n",j);
 	return -1;
     }
-    else
-    {
-	for(i = 0; i < (j - 1); i++)
-	{
-	    float a = distance[i+1] / (distance[i] * 1.0); 
+    //else
+    //{
+    //    for(i = 0; i < (j - 1); i++)
+    //    {
+    //        float a = distance[i+1] / (distance[i] * 1.0); 
 
-	    if(a >= 0.5 && a <= 2 && ())
-	    {
-		for(k = i; k < i + 59; k++)
-		{
-		    distance[k-i] = distance[k];
-		}
-		*left = i;
-		break;
-	    }
-	}
-    }
+    //        if(a >= 0.5 && a <= 2 )
+    //        {
+    //    	for(k = i; k < i + 59; k++)
+    //    	{
+    //    	    distance[k-i] = distance[k];
+    //    	}
+    //    	*left = i;
+    //    	break;
+    //        }
+    //    }
+    //}
 
-    *average = (tmp[*left+59] - tmp[*left])/(95*1.0);
-    *right = tmp[*left+59];
-
-    *left = tmp[(*left)];
+    *average = (tmp[59] - tmp[0])/(95*1.0);
+    *right = tmp[59];
 
     free(tmp);
     tmp = NULL;
@@ -794,32 +790,39 @@ char* Iden_charbar(picture_T* pic)
      * 5.进行条形码的识别
      * */
     init();
-    //1
-    StatisticH(data,width,height,arPixelH);
-    
-    //2
-    if(BorderH(arPixelH,height,armarkH,&topImage,&bottomImage) == -1)
+
+    locate(pic,&left,&topImage); 
+    printf("left:%d\n",left);
+    left = left - 10;
+
+    printf("topImage:%d\n",topImage);
+    StatisticH(data,width,height,arPixelH,left);
+#if 0 
+    if(BorderH(arPixelH,height,armarkH,topImage,&bottomImage) == -1)
     {
-	printf("没有区域是符合要求检测的,so 我没有办法检测\n");
-	return "NULL";
+        printf("没有区域是符合要求检测的,so 我没有办法检测\n");
+        return "NULL";
     }
+#endif
+    BorderH(arPixelH,height,armarkH,&topImage,&bottomImage);
+    
+    bottomImage = topImage + 20;
 
     printf("top:%d,bottomImage:%d\n",topImage,bottomImage);
 
-    StatisticV(data,width,arPixelV,topImage,bottomImage);
+    StatisticV(data,width,arPixelV,topImage,bottomImage,left);
 
     //3.2
-    BorderV(arPixelV,width,armarkV);
+    BorderV(arPixelV,width,armarkV,left);
 
     //4.1
      
-    if(get_distance1(width,armarkV,&average,&right,&left) == -1)
+    if(get_distance1(width,armarkV,&average,left,&right) == -1)
     {
-	return "NULL";
+        return "NULL";
     }
 
-    printf("left:%d\n",left);
-    printf("right:%d\n",right);
+    //printf("right:%d\n",right);
     
     matrix = (int**)calloc(bottomImage - topImage + 1, sizeof(int*));
 
@@ -827,7 +830,6 @@ char* Iden_charbar(picture_T* pic)
     {
 	matrix[i] = (int*)calloc(60,sizeof(int));
     }
-    
     distance = get_distance2(width,topImage,bottomImage,left,matrix,data);
     
 
@@ -957,3 +959,163 @@ char* Iden_charbar(picture_T* pic)
     return (char*)result1;
 }
 
+/*
+ * 1.把图像化分成30pixels 高的图片条
+ * 2.统计每一个边缘点的x,y坐标，并统计这样的点的个数
+ * 3.求出质心,确定图片条
+ * 4.根据质心来求出条形码的左右边界,然后就根据上面的检测步骤进行识别就ok了
+ * */
+static void locate(picture_T* pic,int* left,int*topimage)
+{
+    int i	= 0;
+    int j	= 0;
+    int width   = 0;
+    int height	= 0;
+
+    long long ncount	= 0;
+    double av_x = 0;
+    double av_y = 0;
+    int	   avi_x = 0;
+    int	   avi_y = 0;
+    int	   min1 = 1000;
+    int    min2 = 1000;
+    int	   index1 = 0;
+    int	   index2 = 0;
+
+    int*   dis = NULL; 
+
+    UINT8*data	= NULL;
+    point** matrix = NULL;
+
+    assert(pic && pic->data);
+    assert(pic->width > 0 && pic->height > 0);
+
+    width	= pic->width;
+    height	= pic->height;
+    data	= pic->data;
+    
+    dis		= (int*)calloc(width,sizeof(int));
+    matrix = (point**)calloc(height,sizeof(point*));
+
+    for(i = 0; i < height; i++)
+    {
+	matrix[i] = (point*)calloc(width,sizeof(point));
+    }
+
+    for(i = 0; i < height; i++)
+	for(j = 0; j < width; j++)
+	{
+	    matrix[i][j].x = matrix[i][j].y = -1;
+	}
+
+    for(i = 0; i < height; i++)
+    {
+	int k = 0;
+	for(j = 0; j < width - 1; j++)
+	{
+	    //printf("%d\n",(data[i*width+j] ^ data[i*width+j+1]));
+	    if((data[i*width+j] ^ data[i*width+j+1]) == 255)
+	    {
+		matrix[i][k].x = j;
+		matrix[i][k++].y = i;
+		ncount++;
+		//printf("(%d,%d),k:%d\n",i,j,k);
+	    }
+	}
+    }
+
+    for(i = 0; i < height; i++)
+    {
+	for(j = 0; j < width; j++)
+	{
+	    if(matrix[i][j].x == -1 && matrix[i][j].y == -1)
+	    {
+		break;
+	    }
+	    else
+	    {
+		av_x += matrix[i][j].x;
+		av_y += matrix[i][j].y;
+	    }
+	}
+    }
+
+    avi_x = (int)av_x / ncount;
+    avi_y = (int)av_y / ncount;
+    
+    printf("avi_x:%d,avi_y:%d\n",avi_x,avi_y);
+    *topimage = avi_y;
+    j = 0; 
+    for(i = 1; i < (width - 1); i++)    
+    {
+	if(matrix[avi_y-1][i].x != -1 && matrix[avi_y-1][i].y != -1)
+	{
+	    if(abs(matrix[avi_y-1][i].x - avi_x) < min1)
+	    {
+		min1 = abs(matrix[avi_y-1][i].x - avi_x);
+		index1 = i;
+	    }
+	    else if(abs(matrix[avi_y-1][i].x - avi_x) < min2)
+	    {
+		min2= abs(matrix[avi_y-1][i].x - avi_x);
+		index2 = i;
+	    }
+
+	    dis[j++] = (matrix[avi_y-1][i].x - matrix[avi_y-1][i-1].x);
+	}
+    }
+    
+    //for(i = 0; i < j; i++)
+    //{
+    //    printf("dis[%d]:%d\n",i,dis[i]);
+    //}
+    printf("min1:%d,min2:%d\n",min1,min2);
+    printf("index1:%d,index2:%d,j:%d\n",index1,index2,j);
+    min1 = 1000;
+
+    if(index1 > index2)
+    {
+	min2 = index2;
+    }
+    else
+    {
+	min2 = index1;
+    }
+
+    for(i = -5; i <= 5; i++)
+    {
+	if(min1 > dis[min2 + i])
+	{
+	    min1 = dis[min2+i];
+	}
+    }
+
+    printf("min1:%d\n",min1);
+
+    for(i = min2; i >= 0; i--)
+    {
+	if(((dis[i]*1.0)/(min1)) >= 7)
+	{
+	    break;
+	}
+    }
+    
+    *left  = matrix[avi_y-1][i+1].x; 
+
+    pic->data[avi_y*width+*left] = 128;
+    pic->data[(avi_y+1)*width+*left - 10] = 128;
+    pic->data[(avi_y+2)*width+*left - 10] = 128;
+    pic->data[(avi_y+3)*width+*left - 10] = 128;
+    pic->data[(avi_y+4)*width+*left - 10] = 128;
+    pic->data[(avi_y+5)*width+*left - 10] = 128;
+    pic->data[(avi_y+6)*width+*left - 10] = 128;
+    
+    free(dis);
+    dis = NULL;
+
+    for(i = 0; i < height; i++)
+    {
+	free(matrix[i]);
+    }
+    free(matrix);
+}

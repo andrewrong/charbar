@@ -14,12 +14,15 @@ class mainwindow:public QMainWindow
 	~mainwindow();
 
     private:
-	QImage*	    myimage;
-	QImage*	    pic_hist;
+	QImage*	    image1;//pic1
+	QImage*	    image2;//pic2
 	QString	    path;
 	picture_T*  photo;
 	UINT8*	    rgb24;
-	UINT8*	    p_gray_data;
+	//UINT8*	    r_gray_data;
+	//UINT8*	    p_gray_data;
+	//关于这个old_rgb24在最后的完善过程会好好的进行修改
+	UINT8*	    old_rgb24;
 	QString	    codec;
 	QLineEdit*  lineEdit;
 	QLabel*	    piclabel;
@@ -39,6 +42,7 @@ class mainwindow:public QMainWindow
 	void get_histogram();
 	void otsuThreadmethod();
 	void charbar();
-	void equalization();
+	void mdelshine();
+	void mbilinear();
 };
 #endif

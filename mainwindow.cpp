@@ -6,19 +6,21 @@ mainwindow::mainwindow(QWidget *parent):QMainWindow(parent)
     QAction*	bin_button = new QAction(tr("binary"),this);
     QAction*	open = new QAction(tr("open"),this);
     QAction*	action_identify = new QAction(tr("identity"),this);
-    QAction*	hist_button = new QAction(tr("histogram"),this);
     QAction*	filter_button = new QAction(tr("median filter"),this);
+    QAction*	shine = new QAction(tr("delshine"),this);
+    QAction*	hist_button = new QAction(tr("histogram"),this);
     QAction*	otsu_button = new QAction(tr("Otsu"),this);
     QAction*	sum_button = new QAction(tr("charbar"),this);
-    QAction*	equal_button = new QAction(tr("equalization"),this);
+    QAction*	zoom_button = new QAction(tr("zoom"),this);
 
     QMenu*	file = menuBar()->addMenu(tr("file"));
     file->addAction(open); 
     QMenu*	pro = menuBar()->addMenu(tr("Process"));
     pro->addAction(gray_button);
-    pro->addAction(equal_button);
-    pro->addAction(filter_button);
+    pro->addAction(zoom_button);
     pro->addAction(hist_button);
+    pro->addAction(shine);
+    pro->addAction(filter_button);
     pro->addAction(otsu_button);
     pro->addAction(bin_button);
     pro->addAction(action_identify);
@@ -32,13 +34,14 @@ mainwindow::mainwindow(QWidget *parent):QMainWindow(parent)
     connect(bin_button,SIGNAL(triggered()),this,SLOT(binary_pic()));
     connect(sum_button,SIGNAL(triggered()),this,SLOT(charbar()));
     connect(otsu_button,SIGNAL(triggered()),this,SLOT(otsuThreadmethod()));
-    connect(equal_button,SIGNAL(triggered()),this,SLOT(equalization()));
+    connect(shine,SIGNAL(triggered()),this,SLOT(mdelshine()));
+    connect(zoom_button,SIGNAL(triggered()),this,SLOT(mbilinear()));
 
     this->lineEdit = new QLineEdit;
     this->piclabel = new QLabel("display picture");
     this->binlabel = new QLabel("a histogram of the image");
-    this->myimage  = NULL;
-    this->pic_hist = NULL;
+    this->image1  = NULL;
+    this->image2  = NULL;
     this->rgb24	   = NULL;
     this->hist	   = NULL;
     this->threshold = 0;
@@ -77,10 +80,10 @@ void mainwindow::capturingdata()
     int j = 0;
     UINT8* tmp1 = photo->data; 
 
-    for(j = 0; j < myimage->height();j++)
+    for(j = 0; j <image1->height();j++)
     {
-	memcpy(photo->data,myimage->scanLine(j),myimage->width() * (myimage->depth() >> 3));
-	photo->data += (myimage->width() * (myimage->depth() >> 3));
+	memcpy(photo->data,image1->scanLine(j),image1->width() * (image1->depth() >> 3));
+	photo->data += (image1->width() * (image1->depth() >> 3));
     }
     photo->data = tmp1;
 }
@@ -97,25 +100,25 @@ void mainwindow::openfile()
     }
     else
     {
-	if(this->myimage)
+	if(this->image1)
     	{
-    	    delete this->myimage;
-	    this->myimage = NULL;
+    	    delete this->image1;
+	    this->image1 = NULL;
     	}
 	
 	/*
 	 * 对打开后面的图片时要释放掉前面图片申请的空间
 	 * */
-    	if(this->rgb24)
+	if(this->rgb24)
     	{
     	    free (this->rgb24);
 	    this->rgb24 = NULL;
     	}
 
-    	myimage = new QImage(this->path);
-    	assert(myimage);
+    	image1 = new QImage(this->path);
+    	assert(image1);
 
-    	this->piclabel->setPixmap(QPixmap::fromImage(*myimage));
+    	this->piclabel->setPixmap(QPixmap::fromImage(*image1));
 
     	if(photo->data)
     	{
@@ -123,10 +126,10 @@ void mainwindow::openfile()
 	    photo->data = NULL;
     	}
 
-    	this->photo->width = myimage->width();
-    	this->photo->height = myimage->height();
-    	this->photo->data = (UINT8*)malloc((myimage->depth() >> 3) * myimage->width() * myimage->height());
-    	this->photo->bpp = myimage->depth();
+    	this->photo->width = image1->width();
+    	this->photo->height = image1->height();
+    	this->photo->data = (UINT8*)malloc((image1->depth() >> 3) * image1->width() * image1->height());
+    	this->photo->bpp = image1->depth();
     	
     	this->rgb24 = (UINT8*)malloc(photo->width * photo->height * 3);
 
@@ -135,7 +138,7 @@ void mainwindow::openfile()
 
     	capturingdata();
 
-    	printf("width is %d,heigth is %d,depth is %d\n",myimage->width(),myimage->height(),myimage->depth());
+    	printf("width is %d,heigth is %d,depth is %d\n",image1->width(),image1->height(),image1->depth());
     	update();
     }
 }
@@ -144,6 +147,7 @@ void mainwindow::openfile()
 void mainwindow::charbar()
 {
     Graying();
+    mbilinear(); 
     filtering();
     get_histogram();
     otsuThreadmethod();
@@ -153,24 +157,29 @@ void mainwindow::charbar()
 }
 void mainwindow::Graying()
 {
-   p_gray_data = graying(this->photo);
+   graying(this->photo);
    rgb8torgb32();
-   binlabel->setPixmap(QPixmap::fromImage(*myimage));
+   binlabel->setPixmap(QPixmap::fromImage(*image2));
    update();
 }
 
-void mainwindow::equalization()
+void mainwindow::mbilinear()
 {
-    Hist_equalization(this->photo);
+    bilinear(photo);
+    this->old_rgb24 = this->rgb24;
+    printf("%d,%d\n",photo->width,photo->height);
+    this->rgb24 = (UINT8*)calloc(photo->width*photo->height*3,sizeof(UINT8));
     rgb8torgb32();
-    binlabel->setPixmap(QPixmap::fromImage(*myimage));
+    binlabel->setPixmap(QPixmap::fromImage(*image2));
     update();
 }
+
+
 void mainwindow::filtering()
 {
     filter(this->photo);
     rgb8torgb32();
-    binlabel->setPixmap(QPixmap::fromImage(*myimage));
+    binlabel->setPixmap(QPixmap::fromImage(*image2));
     update();
 }
 
@@ -185,26 +194,27 @@ void mainwindow::binary_pic()
 {
     binarization(this->photo,this->threshold);
     rgb8torgb32();
-    binlabel->setPixmap(QPixmap::fromImage(*myimage));
+    binlabel->setPixmap(QPixmap::fromImage(*image2));
     update();
 }
 
 void mainwindow::otsuThreadmethod()
 {
-    this->threshold = get_histogram_value2(this->hist);
-    //this->threshold = otsu(this->hist);
+    //this->threshold = get_histogram_value2(this->hist);
+    this->threshold = otsu(this->hist);
     printf("阈值：%d\n",this->threshold);
 }
 
 void mainwindow::Identify()
 {
     char* restr = (char*)Iden_charbar(this->photo);
+//    char* restr = (char*)sobel(this->photo);
     codec = QString(restr);
     
     lineEdit->setText(codec);
     lineEdit->setReadOnly(1);
-    rgb8torgb32();
-    binlabel->setPixmap(QPixmap::fromImage(*myimage));
+    //rgb8torgb32();
+    //binlabel->setPixmap(QPixmap::fromImage(*image2));
     update();
 
 }
@@ -214,7 +224,10 @@ mainwindow::~mainwindow()
     free(photo->data);
     free(photo);
     free(this->rgb24);
-    free(p_gray_data);
+    //free(r_gray_data);
+    //free(p_gray_data);
+    free(old_rgb24);
+    free(hist);
 }
 
 void mainwindow::rgb8torgb32()
@@ -235,14 +248,20 @@ void mainwindow::rgb8torgb32()
 	}
     }
 
-    if(this->myimage)
+    if(this->image2)
     {
-	delete this->myimage;
-	this->myimage = NULL;
+	delete this->image2;
+	this->image2 = NULL;
     }
 
-    this->myimage = new QImage(this->rgb24,photo->width,photo->height,3*photo->width,QImage::Format_RGB888);
-    assert(this->myimage);
+    this->image2 = new QImage(this->rgb24,photo->width,photo->height,3*photo->width,QImage::Format_RGB888);
+    assert(this->image2);
 }
 
-
+void mainwindow::mdelshine()
+{
+	delshine2(this->photo,this->hist);
+	rgb8torgb32();
+	binlabel->setPixmap(QPixmap::fromImage(*image2));
+	update();
+}

@@ -52,6 +52,7 @@ typedef struct histogram
     int sum;
     int max;
     int min;
+    int av;
 } histogram;
 
 #endif
